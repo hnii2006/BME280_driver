@@ -49,10 +49,20 @@
 * No license is granted by implication or otherwise under any patent or
 * patent rights of the copyright holder.
 **************************************************************************/
+/* add a small change for raspberry pi 2015/5/1 h.nii */
 /*---------------------------------------------------------------------------*/
 /* Includes*/
 /*---------------------------------------------------------------------------*/
+#include <stdio.h>
+#include <wiringPiI2C.h>
 #include "bme280.h"
+
+
+int Fd;/// I2C port handle
+
+#define BME280_API 0
+#define BME280_ONE_U8X 0
+#define BME280_TWO_U8X 1
 
 /*----------------------------------------------------------------------------*
 *  The following functions are used for reading and writing of
@@ -197,6 +207,8 @@ s32 bme280_data_readout_template(void)
 
 	/* This API used to read back the written value of standby time*/
 	com_rslt += bme280_get_standby_durn(&v_stand_by_time_u8);
+	delay(100);
+
 /*-----------------------------------------------------------------*
 ************************* END GET and SET FUNCTIONS ****************
 *------------------------------------------------------------------*/
@@ -238,7 +250,7 @@ AND HUMIDITY DATA ********
 
 	/* API is used to read the true humidity*/
 	/* Input value as uncompensated humidity and output format*/
-	com_rslt += bme280_compensate_H_int32(v_data_uncomp_hum_s32);
+	com_rslt += bme280_compensate_humidity_int32(v_data_uncomp_hum_s32);
 
 	/* API is used to read the true temperature, humidity and pressure*/
 	com_rslt += bme280_read_pressure_temperature_humidity(
@@ -246,6 +258,9 @@ AND HUMIDITY DATA ********
 /*--------------------------------------------------------------------*
 ************ END READ TRUE PRESSURE, TEMPERATURE AND HUMIDITY ********
 *-------------------------------------------------------------------------*/
+	printf("%f hPa,",(double)(v_actual_press_u32/100.0));
+	printf("%f %%,",(double)(v_actual_humity_u32/1024.0));
+	printf("%f 'C\n",(double)(v_actual_temp_s32/100.0));
 
 /*-----------------------------------------------------------------------*
 ************************* START DE-INITIALIZATION ***********************
@@ -282,7 +297,7 @@ s8 I2C_routine(void) {
  *--------------------------------------------------------------------------*/
 	bme280.bus_write = BME280_I2C_bus_write;
 	bme280.bus_read = BME280_I2C_bus_read;
-	bme280.dev_addr = BME280_I2C_ADDRESS2;
+	bme280.dev_addr = BME280_I2C_ADDRESS1;
 	bme280.delay_msec = BME280_delay_msek;
 
 	return BME280_INIT_VALUE;
@@ -330,8 +345,12 @@ s8 BME280_I2C_bus_write(u8 dev_addr, u8 reg_addr, u8 *reg_data, u8 cnt)
 	u8 array[I2C_BUFFER_LEN];
 	u8 stringpos = BME280_INIT_VALUE;
 	array[BME280_INIT_VALUE] = reg_addr;
+	int i;
+	printf("W:%02x:%02x,%d:",dev_addr,reg_addr,cnt);
 	for (stringpos = BME280_INIT_VALUE; stringpos < cnt; stringpos++) {
-		array[stringpos + BME280_ONE_U8X] = *(reg_data + stringpos);
+		i = array[stringpos + BME280_ONE_U8X] = *(reg_data + stringpos);
+		wiringPiI2CWriteReg8(Fd, reg_addr + stringpos, i);
+		printf("%02:", i);
 	}
 	/*
 	* Please take the below function as your reference for
@@ -373,9 +392,16 @@ s8 BME280_I2C_bus_read(u8 dev_addr, u8 reg_addr, u8 *reg_data, u8 cnt)
      * In the driver SUCCESS defined as 0
      * and FAILURE defined as -1
 	 */
+	int i;
+	printf("R:%02x:%02x,%d:",dev_addr,reg_addr,cnt);
 	for (stringpos = BME280_INIT_VALUE; stringpos < cnt; stringpos++) {
-		*(reg_data + stringpos) = array[stringpos];
+		i = wiringPiI2CReadReg8(Fd, reg_addr+stringpos);
+		if (i < 0) iError = -1;
+		else *(reg_data + stringpos) = i;
+		printf("%02x:", i);
+		
 	}
+	printf("\n");
 	return (s8)iError;
 }
 
@@ -455,5 +481,14 @@ s8 BME280_SPI_bus_write(u8 dev_addr, u8 reg_addr, u8 *reg_data, u8 cnt)
 void BME280_delay_msek(u32 msek)
 {
 	/*Here you can write your own delay routine*/
+	delay(msek);
 }
 #endif
+
+void main()
+{
+	int id = 0x76;
+	printf("---BME280 test---\n");
+	Fd=wiringPiI2CSetup(id);
+	bme280_data_readout_template();
+}
