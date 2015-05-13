@@ -350,8 +350,9 @@ s8 BME280_I2C_bus_write(u8 dev_addr, u8 reg_addr, u8 *reg_data, u8 cnt)
 	for (stringpos = BME280_INIT_VALUE; stringpos < cnt; stringpos++) {
 		i = array[stringpos + BME280_ONE_U8X] = *(reg_data + stringpos);
 		wiringPiI2CWriteReg8(Fd, reg_addr + stringpos, i);
-		printf("%02:", i);
+		printf("%02x:", i);
 	}
+	printf("\n");
 	/*
 	* Please take the below function as your reference for
 	* write the data using I2C communication
